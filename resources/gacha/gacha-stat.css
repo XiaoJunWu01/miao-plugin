@@ -149,9 +149,12 @@ body:has(.gacha-stat-page) { width: 960px; }
 body:has(.gacha-stat-page) .container { width: 960px; }
 .gacha-stat-page { width: 930px; }
 .gacha-stat-page .user-banner { height: auto; min-height: 0; overflow: hidden; display: flex; flex-wrap: nowrap; align-items: center; width: auto; margin: 8px 24px 8px; border-radius: 48px; padding: 6px 14px; background-size: auto 145%; background-position: center 18%; background-repeat: no-repeat; }
-.gacha-stat-page .page-head { justify-content: flex-start; gap: 10px; margin: 8px 24px 10px; padding: 8px 18px; }
-.gacha-stat-page .page-head strong { margin-right: 0; }
-.gacha-stat-page .page-head span { margin-left: auto; }
+.gacha-stat-page .page-head { justify-content: space-between; gap: 16px; margin: 8px 24px 10px; padding: 8px 18px; }
+.gacha-stat-page .page-user { min-width: 0; overflow: hidden; }
+.gacha-stat-page .page-head strong { display: block; margin-right: 0; overflow-wrap: anywhere; }
+.gacha-stat-page .page-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.gacha-stat-page .page-meta span { overflow-wrap: anywhere; }
+.gacha-stat-page .page-head > span { flex: 0 0 auto; white-space: nowrap; }
 .gacha-stat-page .user-banner .face { flex: 0 0 72px; width: 72px; height: 72px; min-width: 72px; }
 .gacha-stat-page .user-banner .face span { width: 72px; height: 72px; background-size: cover; background-position: center top; }
 .gacha-stat-page .user-banner .user-info { width: auto; min-width: 0; flex: 0 0 auto; overflow: hidden; padding: 8px 6px; }

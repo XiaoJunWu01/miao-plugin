@@ -14,8 +14,11 @@
 <div class="basic gacha-stat-page">
   {{if pageInfo && pageInfo.page > 1}}
   <div class="page-head">
-    <strong>{{face.name}}</strong> #{{uid}} · {{poolName}}统计
-    <span>第 {{pageInfo.page}}/{{pageInfo.total}} 张</span>
+    <div class="page-user">
+      <strong>{{face.name}}</strong>
+      <div class="page-meta"><span>UID: {{uid}}</span><span>{{poolName}}统计</span></div>
+    </div>
+    <span>第 {{pageInfo.page}} / {{pageInfo.total}} 页</span>
   </div>
   {{else}}
   <div class="user-banner" style="background-image:url({{_res_path}}{{face?.banner}})">

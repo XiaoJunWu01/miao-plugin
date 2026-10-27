@@ -33,6 +33,12 @@ app.reg({
     rule: /^#抽卡样式设置\s*(1|2|随机)$/,
     yzRule: /^#抽卡样式设置\s*(1|2|随机)$/
   },
+  paginationMode: {
+    name: '抽卡分页发送方式设置',
+    fn: Gacha.setPaginationMode,
+    rule: /^#抽卡分页设置\s*(首张|逐张|转发)$/,
+    yzRule: /^#抽卡分页设置\s*(首张|逐张|转发)$/
+  },
   info: {
     name: '卡池信息',
     fn: Gacha.info,

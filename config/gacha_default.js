@@ -49,6 +49,14 @@ export const luckCfg = {
   minSample: 3
 }
 
+// 抽卡记录与统计的多页图片发送设置
+export const paginationCfg = {
+  // 发送模式：first 只发送首张，all 逐张发送，forward 使用合并转发
+  mode: 'first',
+  // mode=forward 且合并转发不可用时的降级方式：first 只发首张；all 逐张发送
+  fallback: 'first'
+}
+
 // 【#抽卡记录】图片设置
 export const detailCfg = {
   // 独立抽卡记录样式：1 为头像横幅样式，2 为卡池网格样式

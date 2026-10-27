@@ -9,6 +9,14 @@ import { Button, Character, Player, Weapon } from '#miao.models'
 let { sysCfg, diyCfg } = await Data.importCfg('gacha')
 
 const styleKey = (e) => `miao:gacha:detail-style:${e.user_id || e.user?.qq || 'default'}`
+const paginationModeKey = (e) => `miao:gacha:pagination-mode:${e.user_id || e.user?.qq || 'default'}`
+
+async function getPaginationMode (e) {
+  let userMode = await redis.get(paginationModeKey(e))
+  if (['first', 'all', 'forward'].includes(userMode)) return userMode
+  let configuredMode = diyCfg.paginationCfg?.mode ?? sysCfg.paginationCfg?.mode ?? 'first'
+  return ['first', 'all', 'forward'].includes(configuredMode) ? configuredMode : 'first'
+}
 
 async function getDetailStyle (e, isAll, fallback) {
   if (isAll) return 1
@@ -16,6 +24,84 @@ async function getDetailStyle (e, isAll, fallback) {
   if (mode === 'random') return Math.random() < 0.5 ? 1 : 2
   if (mode === '1' || mode === '2') return Number(mode)
   return Number(fallback) === 2 ? 2 : 1
+}
+
+function isForwardUnavailableError (err) {
+  let codes = [
+    err?.code,
+    err?.retcode,
+    err?.data?.code,
+    err?.data?.retcode,
+    err?.response?.data?.code,
+    err?.response?.data?.retcode
+  ]
+  // OneBot commonly reports unsupported forward messages as retcode 1404.
+  if (codes.some(code => Number(code) === 1404)) return true
+
+  let details = [
+    err?.code,
+    err?.message,
+    err?.data?.code,
+    err?.data?.message,
+    err?.response?.data?.code,
+    err?.response?.data?.message
+  ].filter(Boolean).join(' ')
+  let forwardMethodUnavailable = /(?:makeForwardMsg|sendForwardMsg|forwardMsg|forward_message).{0,60}(?:not a function|undefined|not implemented|not available)|(?:not a function|undefined|not implemented|not available).{0,60}(?:makeForwardMsg|sendForwardMsg|forwardMsg|forward_message)/i.test(details)
+  if (forwardMethodUnavailable) return true
+  let unavailable = /(?:不支持|暂不支持|无法|不能|unsupported|not supported|not support|unavailable|not available|cannot|can't)/i.test(details)
+  let forwardRelated = /(?:合并转发|转发|forward|消息合并)/i.test(details)
+  return unavailable && forwardRelated
+}
+
+function isFailedReplyResult (result) {
+  if (result === false) return true
+  if (!result || typeof result !== 'object') return false
+  if (result.status === 'failed' || result.status === 'error') return true
+  return [result.code, result.retcode, result.data?.code, result.data?.retcode]
+    .some(code => Number.isFinite(Number(code)) && Number(code) !== 0)
+}
+
+async function sendPagedImages (e, imgs, title) {
+  if (!imgs?.length) return
+  let mode = await getPaginationMode(e)
+  let configuredFallback = diyCfg.paginationCfg?.fallback ?? sysCfg.paginationCfg?.fallback ?? 'first'
+  let fallback = configuredFallback === 'all' ? 'all' : 'first'
+
+  if (mode === 'first') {
+    await e.reply(imgs[0])
+    return
+  }
+  if (mode === 'all') {
+    for (let img of imgs) await e.reply(img)
+    return
+  }
+
+  let forwardMsg
+  try {
+    if (typeof common.makeForwardMsg !== 'function') throw new Error('makeForwardMsg is not a function')
+    forwardMsg = await common.makeForwardMsg(e, imgs, title)
+  } catch (err) {
+    if (!isForwardUnavailableError(err)) throw err
+  }
+
+  if (forwardMsg !== undefined && forwardMsg !== null && forwardMsg !== false) {
+    try {
+      let result = await e.reply(forwardMsg)
+      if (isFailedReplyResult(result)) {
+        if (result !== false && !isForwardUnavailableError(result)) throw Object.assign(new Error('合并转发送达失败'), result)
+      } else {
+        return
+      }
+    } catch (err) {
+      if (!isForwardUnavailableError(err)) throw err
+    }
+  }
+
+  if (fallback === 'all') {
+    for (let img of imgs) await e.reply(img)
+    return
+  }
+  await e.reply(imgs[0])
 }
 
 let Gacha = {
@@ -160,7 +246,7 @@ let Gacha = {
       }))
     }
     let title = `UID:${uid} ${poolName}池抽卡记录，共${pages[0].count}条五星，分${pages.length}张图`
-    e.reply(await common.makeForwardMsg(e, imgs, title))
+    await sendPagedImages(e, imgs, title)
     return true
   },
   async stat (e) {
@@ -241,7 +327,7 @@ let Gacha = {
           count: list.length
         }))
       }
-      e.reply(await common.makeForwardMsg(e, imgs, `UID:${uid} ${poolName}统计，共${list.length}期卡池，分${total}张图`))
+      await sendPagedImages(e, imgs, `UID:${uid} ${poolName}统计，共${list.length}期卡池，分${total}张图`)
       return true
     }
 
@@ -257,7 +343,7 @@ let Gacha = {
         count: list.length
       }))
     }
-    e.reply(await common.makeForwardMsg(e, imgs, `UID:${uid} ${poolName}统计，共${list.length}期卡池，分${total}张图`))
+    await sendPagedImages(e, imgs, `UID:${uid} ${poolName}统计，共${list.length}期卡池，分${total}张图`)
     return true
   },
 
@@ -396,6 +482,16 @@ let Gacha = {
     await redis.set(styleKey(e), mode)
     let text = mode === '随机' ? '随机（每次独立记录随机选择样式1或样式2）' : `样式${mode}`
     await e.reply(`抽卡记录样式已设置为：${text}\n仅影响角色、武器、集录、常驻记录，#全部记录不受影响。`)
+    return true
+  },
+
+  async setPaginationMode (e) {
+    let match = /#抽卡分页设置\s*(首张|逐张|转发)/.exec(e.msg || '')
+    if (!match) return false
+    let value = { 首张: 'first', 逐张: 'all', 转发: 'forward' }[match[1]]
+    let labels = { first: '只发送首张图片', all: '逐张独立发送', forward: '合并转发' }
+    await redis.set(paginationModeKey(e), value)
+    await e.reply(`抽卡分页发送方式已设置为：${labels[value]}。`)
     return true
   }
 }
